@@ -1681,6 +1681,8 @@ app.registerExtension({
                         gap: "15px"
                     }
                 });
+                let favoriteSectionsState = { artist: true, copyright: false, character: false };
+                
                 const renderFavoriteTagsSidebar = () => {
                     favoriteTagsSidebar.innerHTML = '';
                     const title = $el("h3", { textContent: '收藏标签', style: { marginTop: "0", marginBottom: "5px", color: "var(--error-text)" } });
@@ -1688,16 +1690,32 @@ app.registerExtension({
                     
                     const renderCategorySection = (categoryName, displayTitle, tags) => {
                         const section = $el("div.danbooru-favorite-section", { style: { display: "flex", flexDirection: "column", gap: "5px" } });
-                        const sectionTitle = $el("h4", { textContent: displayTitle, style: { margin: "5px 0", color: "var(--descrip-text)" } });
+                        
+                        const isExpanded = favoriteSectionsState[categoryName];
+                        const arrow = isExpanded ? '▼' : '▶';
+                        
+                        const sectionTitle = $el("h4", { 
+                            textContent: `${arrow} ${displayTitle}`, 
+                            style: { margin: "5px 0", color: "var(--descrip-text)", cursor: "pointer", userSelect: "none" },
+                            onclick: () => {
+                                favoriteSectionsState[categoryName] = !favoriteSectionsState[categoryName];
+                                renderFavoriteTagsSidebar();
+                            }
+                        });
                         section.appendChild(sectionTitle);
                         
-                        if (!tags || tags.length === 0) {
-                            section.appendChild($el("p", { textContent: "暂无收藏", style: { opacity: "0.5", fontSize: "0.9em", margin: "0" } }));
+                        if (!isExpanded) {
                             favoriteTagsSidebar.appendChild(section);
                             return;
                         }
                         
-                        const list = $el("div.danbooru-artist-list", { style: { display: "flex", flexDirection: "column", gap: "5px" } });
+                        if (!tags || tags.length === 0) {
+                            section.appendChild($el("p", { textContent: "暂无收藏", style: { opacity: "0.5", fontSize: "0.9em", margin: "0", paddingLeft: "20px" } }));
+                            favoriteTagsSidebar.appendChild(section);
+                            return;
+                        }
+                        
+                        const list = $el("div.danbooru-artist-list", { style: { display: "flex", flexDirection: "column", gap: "5px", paddingLeft: "10px" } });
                         tags.forEach(tag => {
                             const itemContainer = $el("div", { style: { display: "flex", alignItems: "center", gap: "5px" } });
                             const item = $el("div.danbooru-artist-item", {
