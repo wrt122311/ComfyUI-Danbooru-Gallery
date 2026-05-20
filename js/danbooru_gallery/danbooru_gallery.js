@@ -1734,9 +1734,7 @@ app.registerExtension({
                                 onclick: () => {
                                     searchInput.value = tag;
                                     saveToLocalStorage('searchValue', searchInput.value);
-                                    currentSearchType = 'search';
-                                    currentPage = 1;
-                                    loadImages(tag, currentPage);
+                                    fetchAndRender(true);
                                 }
                             });
                             itemContainer.appendChild(item);
