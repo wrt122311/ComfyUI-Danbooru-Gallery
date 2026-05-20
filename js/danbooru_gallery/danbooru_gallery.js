@@ -756,6 +756,29 @@ app.registerExtension({
                    </svg>
                    ${t('favorites')}`;
 
+                // 收藏画师按钮
+                const favoriteArtistsButton = $el("button.danbooru-favorite-artists-button", {
+                    title: '收藏画师' // TODO: add translation if needed
+                });
+                favoriteArtistsButton.innerHTML = `
+                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon">
+                       <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
+                   </svg>
+                   收藏画师`;
+                
+                let isFavoriteArtistsSidebarVisible = false;
+                favoriteArtistsButton.addEventListener("click", () => {
+                    isFavoriteArtistsSidebarVisible = !isFavoriteArtistsSidebarVisible;
+                    if (isFavoriteArtistsSidebarVisible) {
+                        favoriteArtistsSidebar.style.display = 'flex';
+                        favoriteArtistsButton.classList.add('active');
+                        renderArtistSidebar();
+                    } else {
+                        favoriteArtistsSidebar.style.display = 'none';
+                        favoriteArtistsButton.classList.remove('active');
+                    }
+                });
+
                 // 导出设置
                 const exportSettings = () => {
                     const settingsToExport = {
@@ -1491,6 +1514,7 @@ app.registerExtension({
                                 authSuccess = authResult.success;
                                 if (authSuccess) {
                                     await loadFavorites(); // 登录成功后重新加载收藏夹
+                                    await loadFavoriteArtists();
                                 } else {
                                     showToast(authResult.error || "保存认证信息失败", 'error');
                                     return;
@@ -1644,7 +1668,63 @@ app.registerExtension({
                    </svg>`;
 
 
-                const imageGrid = $el("div.danbooru-image-grid");
+                const imageGrid = $el("div.danbooru-image-grid", { style: { flex: "1" } });
+                const favoriteArtistsSidebar = $el("div.danbooru-favorite-artists-sidebar", {
+                    style: {
+                        width: "250px",
+                        display: "none",
+                        flexDirection: "column",
+                        borderRight: "1px solid var(--border-color)",
+                        backgroundColor: "var(--comfy-menu-bg)",
+                        overflowY: "auto",
+                        padding: "10px"
+                    }
+                });
+                const renderArtistSidebar = () => {
+                    favoriteArtistsSidebar.innerHTML = '';
+                    const title = $el("h3", { textContent: '收藏画师', style: { marginTop: "0", marginBottom: "10px", color: "var(--error-text)" } });
+                    favoriteArtistsSidebar.appendChild(title);
+                    
+                    if (!currentFavoriteArtists || currentFavoriteArtists.length === 0) {
+                        favoriteArtistsSidebar.appendChild($el("p", { textContent: "暂无收藏的画师", style: { opacity: "0.5" } }));
+                        return;
+                    }
+                    
+                    const list = $el("div.danbooru-artist-list", { style: { display: "flex", flexDirection: "column", gap: "5px" } });
+                    currentFavoriteArtists.forEach(artist => {
+                        const itemContainer = $el("div", { style: { display: "flex", alignItems: "center", gap: "5px" } });
+                        const item = $el("div.danbooru-artist-item", {
+                            textContent: artist,
+                            title: artist,
+                            style: {
+                                padding: "8px",
+                                backgroundColor: "var(--comfy-input-bg)",
+                                cursor: "pointer",
+                                borderRadius: "4px",
+                                flex: "1",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap"
+                            },
+                            onclick: () => {
+                                searchInput.value = artist;
+                                saveToLocalStorage('searchValue', searchInput.value);
+                                currentSearchType = 'search';
+                                currentPage = 1;
+                                loadImages(artist, currentPage);
+                            }
+                        });
+                        itemContainer.appendChild(item);
+                        list.appendChild(itemContainer);
+                    });
+                    favoriteArtistsSidebar.appendChild(list);
+                };
+                
+                const contentWrapper = $el("div.danbooru-content-wrapper", {
+                    style: { display: "flex", flex: "1", overflow: "hidden", minHeight: "0", position: "relative" }
+                });
+                contentWrapper.appendChild(favoriteArtistsSidebar);
+                contentWrapper.appendChild(imageGrid);
 
                 // 创建筛选对话框
                 const showFilterDialog = () => {
@@ -1968,6 +2048,47 @@ app.registerExtension({
                         return data.success;
                     } catch (e) {
                         logger.warn("保存黑名单失败:", e);
+                        return false;
+                    }
+                };
+
+                let currentFavoriteArtists = [];
+
+                const loadFavoriteArtists = async () => {
+                    try {
+                        const response = await fetch('/danbooru_gallery/favorite_artists');
+                        const data = await response.json();
+                        currentFavoriteArtists = data.favorite_artists || [];
+                    } catch (e) {
+                        logger.warn("加载收藏画师失败:", e);
+                        currentFavoriteArtists = [];
+                    }
+                };
+
+                const toggleFavoriteArtist = async (artist, isFavorite) => {
+                    try {
+                        const endpoint = isFavorite ? '/danbooru_gallery/favorite_artists/add' : '/danbooru_gallery/favorite_artists/remove';
+                        const response = await fetch(endpoint, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ artist: artist })
+                        });
+                        const data = await response.json();
+                        if (data.success) {
+                            if (isFavorite && !currentFavoriteArtists.includes(artist)) {
+                                currentFavoriteArtists.push(artist);
+                            } else if (!isFavorite) {
+                                currentFavoriteArtists = currentFavoriteArtists.filter(a => a !== artist);
+                            }
+                            if (typeof renderArtistSidebar === 'function') {
+                                renderArtistSidebar();
+                            }
+                        }
+                        return data.success;
+                    } catch (e) {
+                        logger.warn("切换收藏画师状态失败:", e);
                         return false;
                     }
                 };
@@ -2729,9 +2850,34 @@ app.registerExtension({
                     const createClickableTagSpan = (tag, category, translation = null) => {
                         const displayText = translation ? `${tag} [${translation}]` : tag;
                         const span = $el("span", {
-                            textContent: displayText,
                             className: `danbooru-tooltip-tag danbooru-clickable-tag tag-category-${category}`,
+                            style: { display: "inline-flex", alignItems: "center", gap: "2px" }
                         });
+                        span.appendChild(document.createTextNode(displayText));
+
+                        if (category === 'artist') {
+                            const isFav = currentFavoriteArtists && currentFavoriteArtists.includes(tag);
+                            const starBtn = $el("span", {
+                                innerHTML: isFav ? '★' : '☆',
+                                title: isFav ? '取消收藏画师' : '收藏画师',
+                                style: { 
+                                    cursor: "pointer", 
+                                    color: isFav ? "gold" : "inherit",
+                                    fontSize: "1.1em",
+                                    padding: "0 2px"
+                                },
+                                onclick: async (e) => {
+                                    e.stopPropagation();
+                                    e.preventDefault();
+                                    const newFavStatus = !currentFavoriteArtists.includes(tag);
+                                    starBtn.innerHTML = newFavStatus ? '★' : '☆';
+                                    starBtn.style.color = newFavStatus ? "gold" : "inherit";
+                                    starBtn.title = newFavStatus ? '取消收藏画师' : '收藏画师';
+                                    await toggleFavoriteArtist(tag, newFavStatus);
+                                }
+                            });
+                            span.appendChild(starBtn);
+                        }
 
                         const removeExistingMenus = () => {
                             document.querySelectorAll('.danbooru-tag-context-menu').forEach(menu => menu.remove());
@@ -3171,10 +3317,37 @@ app.registerExtension({
 
                     const createTagSpan = (tag, category, translation = null) => {
                         const displayText = translation ? `${tag} [${translation}]` : tag;
-                        return $el("span", {
-                            textContent: displayText,
+                        const span = $el("span", {
                             className: `danbooru-tooltip-tag tag-category-${category}`,
+                            style: { display: "inline-flex", alignItems: "center", gap: "2px" }
                         });
+                        span.appendChild(document.createTextNode(displayText));
+
+                        if (category === 'artist') {
+                            const isFav = currentFavoriteArtists && currentFavoriteArtists.includes(tag);
+                            const starBtn = $el("span", {
+                                innerHTML: isFav ? '★' : '☆',
+                                title: isFav ? '取消收藏画师' : '收藏画师',
+                                style: { 
+                                    cursor: "pointer", 
+                                    color: isFav ? "gold" : "inherit",
+                                    fontSize: "1.1em",
+                                    padding: "0 2px"
+                                },
+                                onclick: async (e) => {
+                                    e.stopPropagation();
+                                    e.preventDefault();
+                                    const newFavStatus = !currentFavoriteArtists.includes(tag);
+                                    starBtn.innerHTML = newFavStatus ? '★' : '☆';
+                                    starBtn.style.color = newFavStatus ? "gold" : "inherit";
+                                    starBtn.title = newFavStatus ? '取消收藏画师' : '收藏画师';
+                                    await toggleFavoriteArtist(tag, newFavStatus);
+                                }
+                            });
+                            span.appendChild(starBtn);
+                        }
+                        
+                        return span;
                     };
 
                     let currentClickHandler = null;
@@ -3613,7 +3786,7 @@ app.registerExtension({
                 });
 
                 // 将包含搜索框和建议面板的容器添加到总控件中
-                container.appendChild($el("div.danbooru-controls", [searchContainer, rankingButton, favoritesButton, ratingSelect, categoryDropdown, formattingDropdown, filterButton, clearSelectionButton, settingsButton, refreshButton]));
+                container.appendChild($el("div.danbooru-controls", [searchContainer, rankingButton, favoritesButton, favoriteArtistsButton, ratingSelect, categoryDropdown, formattingDropdown, filterButton, clearSelectionButton, settingsButton, refreshButton]));
 
                 // 🔧 重要：在 searchInput 被添加到 DOM 之后才创建智能补全实例
                 // 这样 AutocompleteUI 才能正确获取父元素并将建议容器添加到 DOM
@@ -3638,7 +3811,7 @@ app.registerExtension({
                         saveToLocalStorage('searchValue', searchInput.value);
                     }
                 });
-                container.appendChild(imageGrid);
+                container.appendChild(contentWrapper);
 
                 // 创建底部状态栏容器
                 const bottomStatusBar = $el("div.danbooru-bottom-status", {
@@ -3762,6 +3935,7 @@ app.registerExtension({
 
                         if (networkConnected && userAuth.has_auth) {
                             await loadFavorites();
+                            await loadFavoriteArtists();
                         }
 
                         // 更新界面文本

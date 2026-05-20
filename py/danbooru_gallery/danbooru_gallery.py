@@ -105,6 +105,7 @@ def load_settings():
         "danbooru_username": "",
         "danbooru_api_key": "",
         "favorites": [],
+        "favorite_artists": [],
         "debug_mode": False,
         "cache_enabled": True,
         "max_cache_age": 3600,
@@ -197,6 +198,17 @@ def save_favorites(favorites):
     """保存收藏列表到统一设置文件"""
     settings = load_settings()
     settings["favorites"] = favorites
+    return save_settings(settings)
+
+def load_favorite_artists():
+    """从统一设置文件加载收藏画师列表"""
+    settings = load_settings()
+    return settings.get("favorite_artists", [])
+
+def save_favorite_artists(favorite_artists):
+    """保存收藏画师列表到统一设置文件"""
+    settings = load_settings()
+    settings["favorite_artists"] = favorite_artists
     return save_settings(settings)
 
 def load_language():
@@ -740,6 +752,52 @@ async def get_favorites_route(request):
         return web.json_response({"success": True, "favorites": favorites})
     except Exception as e:
         logger.error(f"获取收藏列表接口错误: {e}")
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+@PromptServer.instance.routes.get("/danbooru_gallery/favorite_artists")
+async def get_favorite_artists_route(request):
+    """获取收藏画师列表"""
+    try:
+        favorite_artists = load_favorite_artists()
+        return web.json_response({"success": True, "favorite_artists": favorite_artists})
+    except Exception as e:
+        logger.error(f"获取收藏画师列表接口错误: {e}")
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+@PromptServer.instance.routes.post("/danbooru_gallery/favorite_artists/add")
+async def add_favorite_artist(request):
+    """添加收藏画师"""
+    try:
+        data = await request.json()
+        artist = data.get("artist")
+        if not artist:
+            return web.json_response({"success": False, "error": "缺少artist参数"})
+        
+        favorite_artists = load_favorite_artists()
+        if artist not in favorite_artists:
+            favorite_artists.append(artist)
+            save_favorite_artists(favorite_artists)
+        return web.json_response({"success": True, "message": "收藏画师成功"})
+    except Exception as e:
+        logger.error(f"添加收藏画师接口错误: {e}")
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+@PromptServer.instance.routes.post("/danbooru_gallery/favorite_artists/remove")
+async def remove_favorite_artist(request):
+    """移除收藏画师"""
+    try:
+        data = await request.json()
+        artist = data.get("artist")
+        if not artist:
+            return web.json_response({"success": False, "error": "缺少artist参数"})
+        
+        favorite_artists = load_favorite_artists()
+        if artist in favorite_artists:
+            favorite_artists.remove(artist)
+            save_favorite_artists(favorite_artists)
+        return web.json_response({"success": True, "message": "取消收藏画师成功"})
+    except Exception as e:
+        logger.error(f"移除收藏画师接口错误: {e}")
         return web.json_response({"success": False, "error": str(e)}, status=500)
 
 @PromptServer.instance.routes.post("/danbooru_gallery/user_auth")
