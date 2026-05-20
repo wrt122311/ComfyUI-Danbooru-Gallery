@@ -1681,7 +1681,7 @@ app.registerExtension({
                         gap: "15px"
                     }
                 });
-                let favoriteSectionsState = { artist: true, copyright: false, character: false };
+                let favoriteSectionsState = { artist: false, copyright: false, character: false };
                 
                 const renderFavoriteTagsSidebar = () => {
                     favoriteTagsSidebar.innerHTML = '';
