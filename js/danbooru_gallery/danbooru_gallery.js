@@ -2300,7 +2300,11 @@ app.registerExtension({
                         selectedCategories.forEach(category => {
                             const tags = postToUse[`tag_string_${category}`];
                             if (tags) {
-                                output_tags.push(...tags.split(' '));
+                                if (category === 'artist') {
+                                    output_tags.push(...tags.split(' ').map(t => '@' + t.replace(/_/g, ' ')));
+                                } else {
+                                    output_tags.push(...tags.split(' '));
+                                }
                             }
                         });
                         let tagsToProcess = (output_tags.length > 0) ? output_tags : (postToUse.tag_string || '').split(' ');
@@ -2445,7 +2449,11 @@ app.registerExtension({
                             selectedCategories.forEach(category => {
                                 const tags = postToUpdate[`tag_string_${category}`];
                                 if (tags) {
-                                    output_tags.push(...tags.split(' '));
+                                    if (category === 'artist') {
+                                        output_tags.push(...tags.split(' ').map(t => '@' + t.replace(/_/g, ' ')));
+                                    } else {
+                                        output_tags.push(...tags.split(' '));
+                                    }
                                 }
                             });
 
@@ -2564,7 +2572,11 @@ app.registerExtension({
                                 if (selectedCategoriesToCopy.includes(category)) { // Only include if category is selected
                                     const tags = postToCopy[`tag_string_${category}`];
                                     if (tags) {
-                                        tagsToCopy.push(...tags.split(' '));
+                                        if (category === 'artist') {
+                                            tagsToCopy.push(...tags.split(' ').map(t => '@' + t.replace(/_/g, ' ')));
+                                        } else {
+                                            tagsToCopy.push(...tags.split(' '));
+                                        }
                                     }
                                 }
                             });
@@ -2637,7 +2649,11 @@ app.registerExtension({
                                     selectedCategories.forEach(category => {
                                         const tags = originalPostData[`tag_string_${category}`];
                                         if (tags) {
-                                            output_tags.push(...tags.split(' '));
+                                            if (category === 'artist') {
+                                                output_tags.push(...tags.split(' ').map(t => '@' + t.replace(/_/g, ' ')));
+                                            } else {
+                                                output_tags.push(...tags.split(' '));
+                                            }
                                         }
                                     });
                                     let tagsToProcess = (output_tags.length > 0) ? output_tags : (originalPostData.tag_string || '').split(' ');
@@ -2961,7 +2977,11 @@ app.registerExtension({
                     selectedCategories.forEach(category => {
                         const tags = postToUse[`tag_string_${category}`];
                         if (tags) {
-                            output_tags.push(...tags.split(' '));
+                            if (category === 'artist') {
+                                output_tags.push(...tags.split(' ').map(t => '@' + t.replace(/_/g, ' ')));
+                            } else {
+                                output_tags.push(...tags.split(' '));
+                            }
                         }
                     });
 
