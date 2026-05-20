@@ -756,26 +756,26 @@ app.registerExtension({
                    </svg>
                    ${t('favorites')}`;
 
-                // 收藏画师按钮
-                const favoriteArtistsButton = $el("button.danbooru-favorite-artists-button", {
-                    title: '收藏画师' // TODO: add translation if needed
+                // 收藏标签按钮
+                const favoriteTagsButton = $el("button.danbooru-favorite-tags-button", {
+                    title: '收藏标签' // TODO: add translation if needed
                 });
-                favoriteArtistsButton.innerHTML = `
+                favoriteTagsButton.innerHTML = `
                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon">
                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
                    </svg>
-                   收藏画师`;
+                   收藏标签`;
                 
-                let isFavoriteArtistsSidebarVisible = false;
-                favoriteArtistsButton.addEventListener("click", () => {
-                    isFavoriteArtistsSidebarVisible = !isFavoriteArtistsSidebarVisible;
-                    if (isFavoriteArtistsSidebarVisible) {
-                        favoriteArtistsSidebar.style.display = 'flex';
-                        favoriteArtistsButton.classList.add('active');
-                        renderArtistSidebar();
+                let isFavoriteTagsSidebarVisible = false;
+                favoriteTagsButton.addEventListener("click", () => {
+                    isFavoriteTagsSidebarVisible = !isFavoriteTagsSidebarVisible;
+                    if (isFavoriteTagsSidebarVisible) {
+                        favoriteTagsSidebar.style.display = 'flex';
+                        favoriteTagsButton.classList.add('active');
+                        renderFavoriteTagsSidebar();
                     } else {
-                        favoriteArtistsSidebar.style.display = 'none';
-                        favoriteArtistsButton.classList.remove('active');
+                        favoriteTagsSidebar.style.display = 'none';
+                        favoriteTagsButton.classList.remove('active');
                     }
                 });
 
@@ -1514,7 +1514,7 @@ app.registerExtension({
                                 authSuccess = authResult.success;
                                 if (authSuccess) {
                                     await loadFavorites(); // 登录成功后重新加载收藏夹
-                                    await loadFavoriteArtists();
+                                    await loadFavoriteTags();
                                 } else {
                                     showToast(authResult.error || "保存认证信息失败", 'error');
                                     return;
@@ -1669,7 +1669,7 @@ app.registerExtension({
 
 
                 const imageGrid = $el("div.danbooru-image-grid", { style: { flex: "1" } });
-                const favoriteArtistsSidebar = $el("div.danbooru-favorite-artists-sidebar", {
+                const favoriteTagsSidebar = $el("div.danbooru-favorite-tags-sidebar", {
                     style: {
                         width: "250px",
                         display: "none",
@@ -1677,53 +1677,66 @@ app.registerExtension({
                         borderRight: "1px solid var(--border-color)",
                         backgroundColor: "var(--comfy-menu-bg)",
                         overflowY: "auto",
-                        padding: "10px"
+                        padding: "10px",
+                        gap: "15px"
                     }
                 });
-                const renderArtistSidebar = () => {
-                    favoriteArtistsSidebar.innerHTML = '';
-                    const title = $el("h3", { textContent: '收藏画师', style: { marginTop: "0", marginBottom: "10px", color: "var(--error-text)" } });
-                    favoriteArtistsSidebar.appendChild(title);
+                const renderFavoriteTagsSidebar = () => {
+                    favoriteTagsSidebar.innerHTML = '';
+                    const title = $el("h3", { textContent: '收藏标签', style: { marginTop: "0", marginBottom: "5px", color: "var(--error-text)" } });
+                    favoriteTagsSidebar.appendChild(title);
                     
-                    if (!currentFavoriteArtists || currentFavoriteArtists.length === 0) {
-                        favoriteArtistsSidebar.appendChild($el("p", { textContent: "暂无收藏的画师", style: { opacity: "0.5" } }));
-                        return;
-                    }
-                    
-                    const list = $el("div.danbooru-artist-list", { style: { display: "flex", flexDirection: "column", gap: "5px" } });
-                    currentFavoriteArtists.forEach(artist => {
-                        const itemContainer = $el("div", { style: { display: "flex", alignItems: "center", gap: "5px" } });
-                        const item = $el("div.danbooru-artist-item", {
-                            textContent: artist,
-                            title: artist,
-                            style: {
-                                padding: "8px",
-                                backgroundColor: "var(--comfy-input-bg)",
-                                cursor: "pointer",
-                                borderRadius: "4px",
-                                flex: "1",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap"
-                            },
-                            onclick: () => {
-                                searchInput.value = artist;
-                                saveToLocalStorage('searchValue', searchInput.value);
-                                currentSearchType = 'search';
-                                currentPage = 1;
-                                loadImages(artist, currentPage);
-                            }
+                    const renderCategorySection = (categoryName, displayTitle, tags) => {
+                        const section = $el("div.danbooru-favorite-section", { style: { display: "flex", flexDirection: "column", gap: "5px" } });
+                        const sectionTitle = $el("h4", { textContent: displayTitle, style: { margin: "5px 0", color: "var(--descrip-text)" } });
+                        section.appendChild(sectionTitle);
+                        
+                        if (!tags || tags.length === 0) {
+                            section.appendChild($el("p", { textContent: "暂无收藏", style: { opacity: "0.5", fontSize: "0.9em", margin: "0" } }));
+                            favoriteTagsSidebar.appendChild(section);
+                            return;
+                        }
+                        
+                        const list = $el("div.danbooru-artist-list", { style: { display: "flex", flexDirection: "column", gap: "5px" } });
+                        tags.forEach(tag => {
+                            const itemContainer = $el("div", { style: { display: "flex", alignItems: "center", gap: "5px" } });
+                            const item = $el("div.danbooru-artist-item", {
+                                textContent: tag,
+                                title: tag,
+                                style: {
+                                    padding: "8px",
+                                    backgroundColor: "var(--comfy-input-bg)",
+                                    cursor: "pointer",
+                                    borderRadius: "4px",
+                                    flex: "1",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap"
+                                },
+                                onclick: () => {
+                                    searchInput.value = tag;
+                                    saveToLocalStorage('searchValue', searchInput.value);
+                                    currentSearchType = 'search';
+                                    currentPage = 1;
+                                    loadImages(tag, currentPage);
+                                }
+                            });
+                            itemContainer.appendChild(item);
+                            list.appendChild(itemContainer);
                         });
-                        itemContainer.appendChild(item);
-                        list.appendChild(itemContainer);
-                    });
-                    favoriteArtistsSidebar.appendChild(list);
+                        section.appendChild(list);
+                        favoriteTagsSidebar.appendChild(section);
+                    };
+
+                    renderCategorySection('artist', '🎨 画师', currentFavoriteTags.artist);
+                    renderCategorySection('copyright', '📚 作品', currentFavoriteTags.copyright);
+                    renderCategorySection('character', '👤 人物', currentFavoriteTags.character);
                 };
                 
                 const contentWrapper = $el("div.danbooru-content-wrapper", {
                     style: { display: "flex", flex: "1", overflow: "hidden", minHeight: "0", position: "relative" }
                 });
-                contentWrapper.appendChild(favoriteArtistsSidebar);
+                contentWrapper.appendChild(favoriteTagsSidebar);
                 contentWrapper.appendChild(imageGrid);
 
                 // 创建筛选对话框
@@ -2052,43 +2065,46 @@ app.registerExtension({
                     }
                 };
 
-                let currentFavoriteArtists = [];
+                let currentFavoriteTags = { artist: [], copyright: [], character: [] };
 
-                const loadFavoriteArtists = async () => {
+                const loadFavoriteTags = async () => {
                     try {
-                        const response = await fetch('/danbooru_gallery/favorite_artists');
+                        const response = await fetch('/danbooru_gallery/favorite_tags');
                         const data = await response.json();
-                        currentFavoriteArtists = data.favorite_artists || [];
+                        if (data.favorite_tags) {
+                            currentFavoriteTags = data.favorite_tags;
+                        }
                     } catch (e) {
-                        logger.warn("加载收藏画师失败:", e);
-                        currentFavoriteArtists = [];
+                        logger.warn("加载收藏标签失败:", e);
+                        currentFavoriteTags = { artist: [], copyright: [], character: [] };
                     }
                 };
 
-                const toggleFavoriteArtist = async (artist, isFavorite) => {
+                const toggleFavoriteTag = async (tag, category, isFavorite) => {
                     try {
-                        const endpoint = isFavorite ? '/danbooru_gallery/favorite_artists/add' : '/danbooru_gallery/favorite_artists/remove';
+                        const endpoint = isFavorite ? '/danbooru_gallery/favorite_tags/add' : '/danbooru_gallery/favorite_tags/remove';
                         const response = await fetch(endpoint, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
                             },
-                            body: JSON.stringify({ artist: artist })
+                            body: JSON.stringify({ tag: tag, category: category })
                         });
                         const data = await response.json();
                         if (data.success) {
-                            if (isFavorite && !currentFavoriteArtists.includes(artist)) {
-                                currentFavoriteArtists.push(artist);
+                            const categoryTags = currentFavoriteTags[category] || [];
+                            if (isFavorite && !categoryTags.includes(tag)) {
+                                categoryTags.push(tag);
                             } else if (!isFavorite) {
-                                currentFavoriteArtists = currentFavoriteArtists.filter(a => a !== artist);
+                                currentFavoriteTags[category] = categoryTags.filter(a => a !== tag);
                             }
-                            if (typeof renderArtistSidebar === 'function') {
-                                renderArtistSidebar();
+                            if (typeof renderFavoriteTagsSidebar === 'function') {
+                                renderFavoriteTagsSidebar();
                             }
                         }
                         return data.success;
                     } catch (e) {
-                        logger.warn("切换收藏画师状态失败:", e);
+                        logger.warn("切换收藏状态失败:", e);
                         return false;
                     }
                 };
@@ -2855,11 +2871,13 @@ app.registerExtension({
                         });
                         span.appendChild(document.createTextNode(displayText));
 
-                        if (category === 'artist') {
-                            const isFav = currentFavoriteArtists && currentFavoriteArtists.includes(tag);
+                        if (['artist', 'copyright', 'character'].includes(category)) {
+                            const categoryTags = currentFavoriteTags[category] || [];
+                            const isFav = categoryTags.includes(tag);
+                            const label = category === 'artist' ? '画师' : (category === 'copyright' ? '作品' : '人物');
                             const starBtn = $el("span", {
                                 innerHTML: isFav ? '★' : '☆',
-                                title: isFav ? '取消收藏画师' : '收藏画师',
+                                title: isFav ? `取消收藏${label}` : `收藏${label}`,
                                 style: { 
                                     cursor: "pointer", 
                                     color: isFav ? "gold" : "inherit",
@@ -2869,11 +2887,12 @@ app.registerExtension({
                                 onclick: async (e) => {
                                     e.stopPropagation();
                                     e.preventDefault();
-                                    const newFavStatus = !currentFavoriteArtists.includes(tag);
+                                    const currentCatTags = currentFavoriteTags[category] || [];
+                                    const newFavStatus = !currentCatTags.includes(tag);
                                     starBtn.innerHTML = newFavStatus ? '★' : '☆';
                                     starBtn.style.color = newFavStatus ? "gold" : "inherit";
-                                    starBtn.title = newFavStatus ? '取消收藏画师' : '收藏画师';
-                                    await toggleFavoriteArtist(tag, newFavStatus);
+                                    starBtn.title = newFavStatus ? `取消收藏${label}` : `收藏${label}`;
+                                    await toggleFavoriteTag(tag, category, newFavStatus);
                                 }
                             });
                             span.appendChild(starBtn);
@@ -3323,11 +3342,13 @@ app.registerExtension({
                         });
                         span.appendChild(document.createTextNode(displayText));
 
-                        if (category === 'artist') {
-                            const isFav = currentFavoriteArtists && currentFavoriteArtists.includes(tag);
+                        if (['artist', 'copyright', 'character'].includes(category)) {
+                            const categoryTags = currentFavoriteTags[category] || [];
+                            const isFav = categoryTags.includes(tag);
+                            const label = category === 'artist' ? '画师' : (category === 'copyright' ? '作品' : '人物');
                             const starBtn = $el("span", {
                                 innerHTML: isFav ? '★' : '☆',
-                                title: isFav ? '取消收藏画师' : '收藏画师',
+                                title: isFav ? `取消收藏${label}` : `收藏${label}`,
                                 style: { 
                                     cursor: "pointer", 
                                     color: isFav ? "gold" : "inherit",
@@ -3337,11 +3358,12 @@ app.registerExtension({
                                 onclick: async (e) => {
                                     e.stopPropagation();
                                     e.preventDefault();
-                                    const newFavStatus = !currentFavoriteArtists.includes(tag);
+                                    const currentCatTags = currentFavoriteTags[category] || [];
+                                    const newFavStatus = !currentCatTags.includes(tag);
                                     starBtn.innerHTML = newFavStatus ? '★' : '☆';
                                     starBtn.style.color = newFavStatus ? "gold" : "inherit";
-                                    starBtn.title = newFavStatus ? '取消收藏画师' : '收藏画师';
-                                    await toggleFavoriteArtist(tag, newFavStatus);
+                                    starBtn.title = newFavStatus ? `取消收藏${label}` : `收藏${label}`;
+                                    await toggleFavoriteTag(tag, category, newFavStatus);
                                 }
                             });
                             span.appendChild(starBtn);
@@ -3786,7 +3808,7 @@ app.registerExtension({
                 });
 
                 // 将包含搜索框和建议面板的容器添加到总控件中
-                container.appendChild($el("div.danbooru-controls", [searchContainer, rankingButton, favoritesButton, favoriteArtistsButton, ratingSelect, categoryDropdown, formattingDropdown, filterButton, clearSelectionButton, settingsButton, refreshButton]));
+                container.appendChild($el("div.danbooru-controls", [searchContainer, rankingButton, favoritesButton, favoriteTagsButton, ratingSelect, categoryDropdown, formattingDropdown, filterButton, clearSelectionButton, settingsButton, refreshButton]));
 
                 // 🔧 重要：在 searchInput 被添加到 DOM 之后才创建智能补全实例
                 // 这样 AutocompleteUI 才能正确获取父元素并将建议容器添加到 DOM
@@ -3934,9 +3956,10 @@ app.registerExtension({
 
 
                         if (networkConnected && userAuth.has_auth) {
-                            await loadFavorites();
-                            await loadFavoriteArtists();
+                            // do nothing here for now, or just remove the if entirely if it's empty
                         }
+                        await loadFavorites();
+                        await loadFavoriteTags();
 
                         // 更新界面文本
                         updateInterfaceTexts();
