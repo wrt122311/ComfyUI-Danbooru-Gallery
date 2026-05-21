@@ -912,7 +912,7 @@ async def get_recommendations(request):
 
         # Step 3: 按权重排序，取 top N 标签
         sorted_tags = sorted(tag_weights.items(), key=lambda x: -x[1])
-        top_tags = [t[0] for t in sorted_tags[:20]]
+        top_tags = [t[0] for t in sorted_tags[:30]]
 
         if not top_tags:
             return web.json_response({
@@ -921,11 +921,11 @@ async def get_recommendations(request):
             })
 
         # Step 4: 生成多个搜索查询（每个 1 标签 + order:score）
-        num_queries = min(5, len(top_tags))
+        num_queries = min(8, len(top_tags))
         # 按权重加权随机选取
-        weights = [tag_weights[t] for t in top_tags[:10]]
+        weights = [tag_weights[t] for t in top_tags[:20]]
         selected_tags = []
-        pool = list(zip(top_tags[:10], weights))
+        pool = list(zip(top_tags[:20], weights))
         for _ in range(num_queries):
             if not pool:
                 break
@@ -941,10 +941,11 @@ async def get_recommendations(request):
         if username and api_key:
             auth_kwargs["auth"] = HTTPBasicAuth(username, api_key)
 
-        per_query_limit = max(limit // num_queries + 2, 10)
+        per_query_limit = 35
         for tag in selected_tags:
             try:
-                random_page = random.randint(1, 10)
+                # 只有 1 或 2 页，避免冷门 tag 在深页搜不出任何结果导致推荐过少
+                random_page = random.randint(1, 2)
                 params = {
                     "tags": f"{tag} order:score",
                     "limit": per_query_limit,

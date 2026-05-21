@@ -2425,7 +2425,7 @@ app.registerExtension({
                     imageGrid.innerHTML = `<p class="danbooru-status danbooru-loading">正在分析你的偏好并生成推荐...</p>`;
 
                     try {
-                        const response = await fetch(`/danbooru_gallery/recommendations?limit=40`);
+                        const response = await fetch(`/danbooru_gallery/recommendations?limit=100`);
                         const data = await response.json();
 
                         if (data.success === false) {
