@@ -1527,22 +1527,27 @@ class DanbooruGalleryNode:
                     return (cached_data,)
 
         posts_url = f"{BASE_URL}/posts.json"
-        
-        # 分离 date: 标签和其他标签
+                # 分离 date: 标签、系统标签和其他普通标签
         date_tag = ''
-        other_tags = []
+        system_tags = []
+        normal_tags = []
         for tag in tags.split(' '):
-            if tag.strip().startswith('date:'):
-                date_tag = tag.strip()
-            elif tag.strip():
-                other_tags.append(tag.strip())
+            tag_stripped = tag.strip()
+            if not tag_stripped:
+                continue
+            if tag_stripped.startswith('date:'):
+                date_tag = tag_stripped
+            elif ':' in tag_stripped:
+                system_tags.append(tag_stripped)
+            else:
+                normal_tags.append(tag_stripped)
 
-        # 限制其他标签的数量
-        if len(other_tags) > 2:
-            other_tags = other_tags[:2]
+        # 限制普通标签（非系统标签）的数量为最多 2 个
+        if len(normal_tags) > 2:
+            normal_tags = normal_tags[:2]
         
         # 重新组合标签
-        final_tags = ' '.join(other_tags)
+        final_tags = ' '.join(normal_tags + system_tags)
         if date_tag:
             final_tags = f"{final_tags} {date_tag}".strip()
 

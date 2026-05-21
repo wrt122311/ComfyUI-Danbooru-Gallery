@@ -492,17 +492,13 @@ app.registerExtension({
                     }
 
                     // 更新按钮tooltip
-                    rankingButton.title = t('rankingTooltip');
+                    if (typeof sortSelect !== 'undefined') {
+                        updateSortOptions();
+                    }
                     favoritesButton.title = t('favorites');
                     refreshButton.title = t('refreshTooltip');
                     settingsButton.title = t('settings');
                     filterButton.title = t('filterTooltip');
-
-                    // 更新排行榜按钮文本
-                    const rankingIcon = rankingButton.querySelector('.icon');
-                    if (rankingIcon) {
-                        rankingButton.innerHTML = rankingIcon.outerHTML + t('ranking');
-                    }
 
                     // 更新收藏夹按钮文本
                     const favoritesIcon = favoritesButton.querySelector('.icon');
@@ -733,18 +729,44 @@ app.registerExtension({
                     });
                 });
 
-                // 排行榜按钮
-                const rankingButton = $el("button.danbooru-ranking-button", {
-                    title: t('rankingTooltip')
+                // 排序选择框
+                const sortSelect = $el("select.danbooru-sort-select", {
+                    title: '排序方式',
+                    style: {
+                        padding: '5px 10px',
+                        borderRadius: '4px',
+                        backgroundColor: 'var(--comfy-input-bg)',
+                        border: '1px solid var(--input-border-color)',
+                        color: 'var(--comfy-input-text)',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        outline: 'none'
+                    }
                 });
-                rankingButton.innerHTML = `
-                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon">
-                       <path d="M16 6L19 9L16 12"></path>
-                       <path d="M8 12L5 9L8 6"></path>
-                       <path d="M12 2V22"></path>
-                       <path d="M3 9H21"></path>
-                   </svg>
-                   ${t('ranking')}`;
+
+                const updateSortOptions = () => {
+                    const isZh = globalMultiLanguageManager.getLanguage() === 'zh';
+                    const currentVal = sortSelect.value || "order:favcount";
+                    sortSelect.innerHTML = '';
+                    const sortOptions = [
+                        { value: "order:favcount", text: isZh ? "❤️ 按收藏数" : "❤️ By Favorites" },
+                        { value: "order:score", text: isZh ? "⭐ 按分数" : "⭐ By Score" },
+                        { value: "order:rank", text: isZh ? "🔥 按热门" : "🔥 By Hot Rank" },
+                        { value: "order:id_desc", text: isZh ? "📅 按最新" : "📅 By Newest" }
+                    ];
+                    sortOptions.forEach(opt => {
+                        const option = document.createElement("option");
+                        option.value = opt.value;
+                        option.textContent = opt.text;
+                        sortSelect.appendChild(option);
+                    });
+                    sortSelect.value = currentVal;
+                    sortSelect.title = isZh ? '排序方式' : 'Sort By';
+                };
+                updateSortOptions();
+                sortSelect.addEventListener("change", () => {
+                    fetchAndRender(true);
+                });
 
                 // 收藏夹按钮
                 const favoritesButton = $el("button.danbooru-favorites-button", {
@@ -2341,6 +2363,14 @@ app.registerExtension({
                         // 将搜索框中的标签转换为API格式
                         let apiFormattedTags = convertTagsToApiFormat(searchValue);
 
+                        // 自动加入选择的排序选项（如果用户没有在输入框手动指定 order:）
+                        if (!apiFormattedTags.includes('order:') && typeof sortSelect !== 'undefined') {
+                            const sortVal = sortSelect.value;
+                            if (sortVal) {
+                                apiFormattedTags += ` ${sortVal}`;
+                            }
+                        }
+
                         // 添加日期筛选
                         if (filterState.startTime || filterState.endTime) {
                             const start = filterState.startTime ? new Date(filterState.startTime).toISOString().split('T')[0] : '';
@@ -3644,6 +3674,8 @@ app.registerExtension({
                         }
                     });
 
+
+
                     // 创建按钮容器
                     const buttonsContainer = $el("div.danbooru-image-buttons");
 
@@ -3719,49 +3751,17 @@ app.registerExtension({
                     }
                     fetchAndRender(true); // 保留，因为改变评分需要重新加载
                 });
-                // 检查和更新排行榜按钮状态的函数
-                const updateRankingButtonState = () => {
+                // 检查和更新排序下拉选择框状态的函数
+                const updateSortSelectState = () => {
+                    if (typeof sortSelect === 'undefined') return;
                     const currentValue = searchInput.value.trim();
-                    const hasRanking = currentValue.includes('order:rank');
-
-                    if (hasRanking) {
-                        rankingButton.classList.add('active');
-                    } else {
-                        rankingButton.classList.remove('active');
+                    for (const opt of sortSelect.options) {
+                        if (currentValue.includes(opt.value)) {
+                            sortSelect.value = opt.value;
+                            break;
+                        }
                     }
                 };
-
-                // 排行榜按钮点击事件
-                rankingButton.addEventListener("click", () => {
-                    const currentValue = searchInput.value.trim();
-                    const hasRanking = currentValue.includes('order:rank');
-
-                    if (hasRanking) {
-                        // 移除 order:rank，并清理残留的逗号
-                        let newValue = currentValue.replace(/\s*order:rank\s*/g, '');
-                        // 清理多余的逗号和空格
-                        newValue = newValue.replace(/,\s*,/g, ',').replace(/,\s*$/g, '').replace(/^\s*,/g, '').replace(/\s+/g, ' ').trim();
-                        searchInput.value = newValue;
-                        rankingButton.classList.remove('active');
-                    } else {
-                        // 添加 order:rank
-                        let newValue;
-                        if (currentValue) {
-                            // 如果前面已经有内容，用逗号分隔，但检查末尾是否已有逗号（后面可能有空格）
-                            const hasTrailingComma = /\s*,\s*$/.test(currentValue);
-                            const separator = hasTrailingComma ? ' ' : ', ';
-                            newValue = `${currentValue}${separator}order:rank`;
-                        } else {
-                            newValue = 'order:rank';
-                        }
-                        searchInput.value = newValue;
-                        rankingButton.classList.add('active');
-                    }
-
-                    // 刷新图像
-                    saveToLocalStorage('searchValue', searchInput.value);
-                    fetchAndRender(true);
-                });
 
                 // 监听搜索框变化，更新排行榜按钮状态
                 // 更新收藏夹按钮状态
@@ -3791,7 +3791,7 @@ app.registerExtension({
                         fetchAndRender(true); // 清空搜索框时自动刷新
                     }
                     previousSearchValue = currentValue;
-                    updateRankingButtonState();
+                    updateSortSelectState();
                     updateFavoritesButtonState();
 
                     const clearButton = searchContainer.querySelector('.danbooru-clear-search-button');
@@ -3892,7 +3892,7 @@ app.registerExtension({
                 });
 
                 // 将包含搜索框和建议面板的容器添加到总控件中
-                container.appendChild($el("div.danbooru-controls", [searchContainer, rankingButton, favoritesButton, favoriteTagsButton, recommendButton, ratingSelect, categoryDropdown, formattingDropdown, filterButton, clearSelectionButton, settingsButton, refreshButton]));
+                container.appendChild($el("div.danbooru-controls", [searchContainer, sortSelect, favoritesButton, favoriteTagsButton, recommendButton, ratingSelect, categoryDropdown, formattingDropdown, filterButton, clearSelectionButton, settingsButton, refreshButton]));
 
                 // 🔧 重要：在 searchInput 被添加到 DOM 之后才创建智能补全实例
                 // 这样 AutocompleteUI 才能正确获取父元素并将建议容器添加到 DOM
@@ -4108,8 +4108,8 @@ app.registerExtension({
                             filterWidget.value = JSON.stringify(filterState);
                         }
 
-                        // 初始化排行榜按钮状态
-                        updateRankingButtonState();
+                        // 初始化排序下拉选择框状态
+                        updateSortSelectState();
 
                         // 根据加载的 filterState 更新筛选按钮状态
                         if (filterState.startTime || filterState.endTime || filterState.startPage) {
@@ -4422,7 +4422,7 @@ $el("style", {
     .danbooru-gallery { width: 100%; display: flex; flex-direction: column; min-height: 200px; }
     .danbooru-controls { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 5px; align-items: stretch; }
     .danbooru-auth-controls { display: flex; gap: 5px; }
-    .danbooru-controls > button, .danbooru-controls > div { padding: 5px; border-radius: 4px; border: 1px solid var(--input-border-color); background-color: var(--comfy-input-bg); color: var(--comfy-input-text); }
+    .danbooru-controls > button, .danbooru-controls > div, .danbooru-controls > select { padding: 5px; border-radius: 4px; border: 1px solid var(--input-border-color); background-color: var(--comfy-input-bg); color: var(--comfy-input-text); }
     .danbooru-controls > .danbooru-search-container > .danbooru-search-input { background: var(--comfy-input-bg); border: 1px solid var(--input-border-color); padding: 5px 10px; border-radius: 4px; }
     .danbooru-controls .danbooru-search-input { flex-grow: 1; min-width: 150px; }
     .danbooru-controls > select { min-width: 100px; }
