@@ -779,6 +779,30 @@ app.registerExtension({
                     }
                 });
 
+                // 智能推荐按钮
+                const recommendButton = $el("button.danbooru-recommend-button", {
+                    title: '智能推荐'
+                });
+                recommendButton.innerHTML = `
+                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon">
+                       <circle cx="12" cy="12" r="10"></circle>
+                       <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                       <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                   </svg>
+                   推荐`;
+                let isRecommendMode = false;
+                recommendButton.addEventListener("click", async () => {
+                    isRecommendMode = !isRecommendMode;
+                    if (isRecommendMode) {
+                        recommendButton.classList.add('active');
+                        await fetchRecommendations();
+                    } else {
+                        recommendButton.classList.remove('active');
+                        // 退出推荐模式，恢复普通搜索
+                        fetchAndRender(true);
+                    }
+                });
+
                 // 导出设置
                 const exportSettings = () => {
                     const settingsToExport = {
@@ -2387,6 +2411,50 @@ app.registerExtension({
                     }
                 };
 
+                // 智能推荐功能
+                const fetchRecommendations = async () => {
+                    if (isLoading) return;
+                    isLoading = true;
+                    refreshButton.classList.add("loading");
+                    refreshButton.disabled = true;
+
+                    // 重置状态
+                    currentPage = 1;
+                    posts = [];
+                    endOfResults = true; // 推荐模式不支持无限滚动
+                    imageGrid.innerHTML = `<p class="danbooru-status danbooru-loading">正在分析你的偏好并生成推荐...</p>`;
+
+                    try {
+                        const response = await fetch(`/danbooru_gallery/recommendations?limit=40`);
+                        const data = await response.json();
+
+                        if (data.success === false) {
+                            imageGrid.innerHTML = `<p class="danbooru-status">${data.error || '推荐失败'}</p>`;
+                            return;
+                        }
+
+                        const newPosts = Array.isArray(data) ? data : [];
+                        if (newPosts.length === 0) {
+                            imageGrid.innerHTML = `<p class="danbooru-status">暂无推荐结果，请先收藏一些标签或图片</p>`;
+                            return;
+                        }
+
+                        imageGrid.innerHTML = '';
+                        const filteredPosts = newPosts.filter(post => !isPostFiltered(post));
+                        posts.push(...filteredPosts);
+                        filteredPosts.forEach(renderPost);
+
+                    } catch (e) {
+                        imageGrid.innerHTML = `<p class="danbooru-status error">推荐加载失败: ${e.message}</p>`;
+                    } finally {
+                        isLoading = false;
+                        refreshButton.classList.remove("loading");
+                        refreshButton.disabled = false;
+                        const indicator = imageGrid.querySelector('.danbooru-loading');
+                        if (indicator) indicator.remove();
+                    }
+                };
+
                 const resizeGrid = () => {
                     const rowGap = parseInt(window.getComputedStyle(imageGrid).getPropertyValue('grid-row-gap'));
                     const rowHeight = parseInt(window.getComputedStyle(imageGrid).getPropertyValue('grid-auto-rows'));
@@ -3824,7 +3892,7 @@ app.registerExtension({
                 });
 
                 // 将包含搜索框和建议面板的容器添加到总控件中
-                container.appendChild($el("div.danbooru-controls", [searchContainer, rankingButton, favoritesButton, favoriteTagsButton, ratingSelect, categoryDropdown, formattingDropdown, filterButton, clearSelectionButton, settingsButton, refreshButton]));
+                container.appendChild($el("div.danbooru-controls", [searchContainer, rankingButton, favoritesButton, favoriteTagsButton, recommendButton, ratingSelect, categoryDropdown, formattingDropdown, filterButton, clearSelectionButton, settingsButton, refreshButton]));
 
                 // 🔧 重要：在 searchInput 被添加到 DOM 之后才创建智能补全实例
                 // 这样 AutocompleteUI 才能正确获取父元素并将建议容器添加到 DOM

@@ -1,5 +1,6 @@
 import requests
 import json
+import random
 import folder_paths
 from server import PromptServer
 from aiohttp import web
@@ -44,6 +45,30 @@ BASE_URL = "https://danbooru.donmai.us"
 # 使用描述性项目 UA；避开 "ComfyUI" 字样以免被 CF 误伤。
 DANBOORU_HEADERS = {
     "User-Agent": "Danbooru-Gallery/1.0"
+}
+
+# 智能推荐功能：需要过滤掉的超高频通用标签（这些标签出现在大量图片中，对推荐没有区分度）
+COMMON_TAGS_BLACKLIST = {
+    "1girl", "solo", "long_hair", "short_hair", "breasts", "looking_at_viewer",
+    "smile", "open_mouth", "blonde_hair", "blue_eyes", "large_breasts",
+    "brown_hair", "black_hair", "red_eyes", "white_hair", "multiple_girls",
+    "1boy", "2girls", "closed_mouth", "simple_background", "white_background",
+    "thighhighs", "gloves", "dress", "ribbon", "hair_ornament", "hat",
+    "navel", "bare_shoulders", "animal_ears", "twintails", "ponytail",
+    "skirt", "medium_breasts", "sitting", "standing", "upper_body",
+    "full_body", "closed_eyes", "very_long_hair", "bow", "cleavage",
+    "hair_ribbon", "holding", "collarbone", "shirt", "green_eyes",
+    "purple_eyes", "brown_eyes", "yellow_eyes", "pink_hair", "purple_hair",
+    "blue_hair", "grey_hair", "red_hair", "green_hair", "orange_hair",
+    "highres", "absurdres", "commentary_request", "commentary",
+    "translated", "translation_request", "bad_id", "bad_pixiv_id",
+    "hetero", "yuri", "school_uniform", "japanese_clothes", "armor",
+    "nude", "nipples", "pussy", "completely_nude", "ass", "penis",
+    "sex", "vaginal", "cum", "oral", "sweat", "blush", "ahoge",
+    "bangs", "hair_between_eyes", "sidelocks", "hair_over_one_eye",
+    "frills", "multicolored_hair", "streaked_hair", "gradient_hair",
+    "solo_focus", "cowboy_shot", "from_behind", "from_above", "from_below",
+    "outdoors", "indoors", "night", "day", "sky", "cloud", "scenery",
 }
 
 # 官方文档限速为 10 req/s，保守取一半 = 5 req/s（200ms 间隔），避免触发 CF 或被站方拉黑。
@@ -821,6 +846,132 @@ async def remove_favorite_tag(request):
             return web.json_response({"success": False, "error": "无效的category参数"})
     except Exception as e:
         logger.error(f"移除收藏标签接口错误: {e}")
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+@PromptServer.instance.routes.get("/danbooru_gallery/recommendations")
+async def get_recommendations(request):
+    """智能推荐：基于收藏标签和收藏图片分析用户偏好，推荐高质量图片"""
+    try:
+        settings = load_settings()
+        favorite_tags = load_favorite_tags()
+        favorites = load_favorites()  # list of post ID strings
+        username = settings.get("danbooru_username", "")
+        api_key = settings.get("danbooru_api_key", "")
+
+        limit = int(request.query.get("limit", "40"))
+
+        # 检查是否有收藏数据
+        all_fav_tags = (favorite_tags.get("artist", []) +
+                        favorite_tags.get("copyright", []) +
+                        favorite_tags.get("character", []))
+        if not all_fav_tags and not favorites:
+            return web.json_response({
+                "success": False,
+                "error": "暂无收藏数据，请先收藏一些标签或图片"
+            })
+
+        # Step 1: 构建加权标签池
+        tag_weights = {}  # tag -> weight
+
+        # 手动收藏的标签赋予高权重
+        for tag in favorite_tags.get("artist", []):
+            tag_weights[tag] = tag_weights.get(tag, 0) + 5
+        for tag in favorite_tags.get("copyright", []):
+            tag_weights[tag] = tag_weights.get(tag, 0) + 5
+        for tag in favorite_tags.get("character", []):
+            tag_weights[tag] = tag_weights.get(tag, 0) + 5
+
+        # Step 2: 如果有认证，分析收藏图片的标签
+        if username and api_key:
+            try:
+                auth = HTTPBasicAuth(username, api_key)
+                # 获取最近收藏的图片（最多 200 张）
+                for page_num in range(1, 3):  # 2 pages x 100
+                    params = {
+                        "tags": f"ordfav:{username}",
+                        "limit": 100,
+                        "page": page_num
+                    }
+                    resp = _danbooru_request("GET", f"{BASE_URL}/posts.json",
+                                            params=params, auth=auth, timeout=15)
+                    if resp.status_code == 200:
+                        fav_posts = resp.json()
+                        if not fav_posts:
+                            break
+                        for post in fav_posts:
+                            for tag_field in ["tag_string_artist", "tag_string_copyright",
+                                              "tag_string_character", "tag_string_general"]:
+                                tags_str = post.get(tag_field, "")
+                                for t in tags_str.split():
+                                    if t and t not in COMMON_TAGS_BLACKLIST:
+                                        tag_weights[t] = tag_weights.get(t, 0) + 1
+                    else:
+                        break
+            except Exception as e:
+                logger.warning(f"分析收藏图片标签失败: {e}")
+
+        # Step 3: 按权重排序，取 top N 标签
+        sorted_tags = sorted(tag_weights.items(), key=lambda x: -x[1])
+        top_tags = [t[0] for t in sorted_tags[:20]]
+
+        if not top_tags:
+            return web.json_response({
+                "success": False,
+                "error": "无法生成推荐，收藏数据不足"
+            })
+
+        # Step 4: 生成多个搜索查询（每个 1 标签 + order:score）
+        num_queries = min(5, len(top_tags))
+        # 按权重加权随机选取
+        weights = [tag_weights[t] for t in top_tags[:10]]
+        selected_tags = []
+        pool = list(zip(top_tags[:10], weights))
+        for _ in range(num_queries):
+            if not pool:
+                break
+            tags_list, w_list = zip(*pool)
+            chosen = random.choices(tags_list, weights=w_list, k=1)[0]
+            selected_tags.append(chosen)
+            pool = [(t, w) for t, w in pool if t != chosen]
+
+        # Step 5: 执行查询，合并去重
+        all_posts = []
+        seen_ids = set()
+        auth_kwargs = {}
+        if username and api_key:
+            auth_kwargs["auth"] = HTTPBasicAuth(username, api_key)
+
+        per_query_limit = max(limit // num_queries + 2, 10)
+        for tag in selected_tags:
+            try:
+                random_page = random.randint(1, 10)
+                params = {
+                    "tags": f"{tag} order:score",
+                    "limit": per_query_limit,
+                    "page": random_page
+                }
+                resp = _danbooru_request("GET", f"{BASE_URL}/posts.json",
+                                        params=params, timeout=15, **auth_kwargs)
+                if resp.status_code == 200:
+                    result_posts = resp.json()
+                    for p in result_posts:
+                        pid = p.get("id")
+                        if pid and pid not in seen_ids:
+                            seen_ids.add(pid)
+                            all_posts.append(p)
+            except Exception as e:
+                logger.warning(f"推荐查询失败 [{tag}]: {e}")
+                continue
+
+        # Step 6: 打乱并截取
+        random.shuffle(all_posts)
+        result = all_posts[:limit]
+
+        logger.info(f"[推荐] 使用标签: {selected_tags}, 返回 {len(result)} 张图片")
+        return web.json_response(result)
+
+    except Exception as e:
+        logger.error(f"推荐接口错误: {e}")
         return web.json_response({"success": False, "error": str(e)}, status=500)
 
 @PromptServer.instance.routes.post("/danbooru_gallery/user_auth")
