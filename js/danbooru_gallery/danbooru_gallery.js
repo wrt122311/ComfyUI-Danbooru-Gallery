@@ -2363,8 +2363,16 @@ app.registerExtension({
                         // 将搜索框中的标签转换为API格式
                         let apiFormattedTags = convertTagsToApiFormat(searchValue);
 
-                        // 自动加入选择的排序选项（如果用户没有在输入框手动指定 order:）
-                        if (!apiFormattedTags.includes('order:') && typeof sortSelect !== 'undefined') {
+                        // 如果整个搜索内容全是数字（和空格），将其视为 ID 搜索
+                        if (/^[\d\s]+$/.test(apiFormattedTags) && apiFormattedTags.trim() !== '') {
+                            const ids = apiFormattedTags.trim().replace(/\s+/g, ',');
+                            apiFormattedTags = `id:${ids}`;
+                        }
+
+                        const isIdSearch = /\bid:[\d,]+/.test(apiFormattedTags);
+
+                        // 自动加入选择的排序选项（如果用户没有在输入框手动指定 order: 且不是ID搜索）
+                        if (!apiFormattedTags.includes('order:') && typeof sortSelect !== 'undefined' && !isIdSearch) {
                             const sortVal = sortSelect.value;
                             if (sortVal) {
                                 apiFormattedTags += ` ${sortVal}`;
@@ -2380,7 +2388,8 @@ app.registerExtension({
 
                         const selectedRatings = getSelectedRatings();
                         const sendAll = selectedRatings.length === 0 || selectedRatings.length === RATING_VALUES.length;
-                        const ratingForServer = sendAll ? "" : selectedRatings.join(",");
+                        // 如果是 ID 搜索，强制不限制 rating，以确保能搜出指定 ID 的作品
+                        const ratingForServer = (sendAll || isIdSearch) ? "" : selectedRatings.join(",");
                         const params = new URLSearchParams({
                             "search[tags]": apiFormattedTags.trim(),
                             "search[rating]": ratingForServer,
