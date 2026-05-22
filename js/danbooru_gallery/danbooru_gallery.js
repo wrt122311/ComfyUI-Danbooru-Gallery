@@ -3035,17 +3035,8 @@ app.registerExtension({
                             const searchOption = $el("div.danbooru-context-menu-item", {
                                 textContent: '🔍 ' + t('search'),
                                 onclick: () => {
-                                    const currentVal = searchInput.value.trim();
                                     const apiTag = tag.replace(/\s+/g, '_');
-                                    let newValue;
-                                    if (currentVal && !/,\s*$/.test(currentVal)) {
-                                        newValue = `${currentVal}, ${apiTag}, `;
-                                    } else if (currentVal) {
-                                        newValue = `${currentVal} ${apiTag}, `;
-                                    } else {
-                                        newValue = `${apiTag}, `;
-                                    }
-                                    searchInput.value = newValue;
+                                    searchInput.value = `${apiTag}, `;
                                     searchInput.dispatchEvent(new Event('input'));
                                     fetchAndRender(true);
                                     menu.remove();
