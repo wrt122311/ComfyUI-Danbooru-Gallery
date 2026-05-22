@@ -170,8 +170,10 @@ class AutocompleteUI {
         const textBeforeCursor = value.substring(0, cursorPosition);
         const lastWord = this.getLastWord(textBeforeCursor);
 
-        // 如果输入长度不够，隐藏菜单
-        if (!lastWord || lastWord.length < this.minQueryLength) {
+        // 如果输入长度不够，隐藏菜单 (中文支持单字查询)
+        const isChineseQuery = /[\u4e00-\u9fff]/.test(lastWord);
+        const requiredLength = isChineseQuery ? 1 : this.minQueryLength;
+        if (!lastWord || lastWord.length < requiredLength) {
             if (this.isActive) {
                 this.hide();
             }
@@ -299,7 +301,7 @@ class AutocompleteUI {
                 // 中文搜索结果
                 // 处理中文搜索API返回的格式 {chinese, english, weight}
                 const tag = item.english || item.tag || item;
-                const translation = item.chinese || item.translation || '';
+                const translation = item.chinese || item.translation || item.translation_cn || '';
                 const count = item.post_count || item.count || 0;
 
                 suggestionElement.innerHTML = `
