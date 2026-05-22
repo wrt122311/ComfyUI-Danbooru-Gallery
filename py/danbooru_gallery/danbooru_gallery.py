@@ -1545,6 +1545,31 @@ class DanbooruGalleryNode:
         # 限制普通标签（非系统标签）的数量为最多 2 个
         if len(normal_tags) > 2:
             normal_tags = normal_tags[:2]
+
+        # 自动将中文标签翻译为英文标签，以便 Danbooru 能正确搜索
+        import re
+        translated_normal_tags = []
+        for tag in normal_tags:
+            if re.search(r'[\u4e00-\u9fff]', tag):
+                if not translation_system.loaded:
+                    translation_system.load_translation_data()
+                # 优先精确匹配
+                if tag in translation_system.cn_to_en:
+                    translated_normal_tags.append(translation_system.cn_to_en[tag])
+                else:
+                    # 如果没有精确匹配，尝试模糊搜索拿最高权重的
+                    matches = translation_system.search_chinese_tags(tag, limit=1)
+                    if matches and isinstance(matches, list) and len(matches) > 0:
+                        if 'tag' in matches[0]:
+                            translated_normal_tags.append(matches[0]['tag'])
+                        else:
+                            translated_normal_tags.append(tag)
+                    else:
+                        translated_normal_tags.append(tag)
+            else:
+                translated_normal_tags.append(tag)
+        
+        normal_tags = translated_normal_tags
         
         # 重新组合标签
         final_tags = ' '.join(normal_tags + system_tags)
